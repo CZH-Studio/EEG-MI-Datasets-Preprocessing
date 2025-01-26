@@ -7,3 +7,6 @@
 (7) BCI Competition IV-2b
 (8) High-Gamma Dataset
 .idea
+__pycache__/
+*.pyc
+.vscode
