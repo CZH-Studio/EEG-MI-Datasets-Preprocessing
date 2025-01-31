@@ -5,19 +5,28 @@ import utils
 from event import Event
 import os
 import mne
+from arg import Arg
+
+
+arg = Arg(
+    index=2,
+    name="Motor Movement_Imagery Dataset",
+    folder_src="E:/Code/Dataset/EEG/(2) Motor Movement_Imagery Dataset",
+    folder_dst="./(2) Motor Movement_Imagery Dataset",
+    sampling_rate=160,
+    scaler=1e+6
+)
 
 
 def main():
-    folder_src = r"E:\Code\Dataset\EEG\(2) Motor Movement_Imagery Dataset"
-    folder_dest = r"./(2) Motor Movement_Imagery Dataset"
-    utils.mkdir(folder_dest)
+    utils.mkdir(arg.folder_dst)
 
     # 遍历每一个受试者（文件夹），每个文件夹下有14个EDF文件，其中只有一些是有关运动想象的，其他不要了
     electrode_namelist = utils.get_electrode_namelist(2)
     enabled_index = [3, 5, 7, 9, 11, 13]
     sampling_rate = 160
-    folder_list = utils.list_dir(folder_src, folder_only=True)
-    progressbar = tqdm(total=len(folder_list) * len(enabled_index), desc="正在处理数据集2")
+    folder_list = utils.list_dir(arg.folder_src, folder_only=True)
+    progressbar = tqdm(total=len(folder_list) * len(enabled_index), desc=f"正在处理数据集{arg.index}")
     for person, folder in enumerate(folder_list):
         file_list = utils.list_dir(folder, ".edf")
         file_list = [file_list[i] for i in enabled_index]
@@ -52,8 +61,11 @@ def main():
             # 将标签添加到eeg的最后一行，然后整体转置
             eeg = np.vstack((eeg, event)).T
             df = utils.dataframe(eeg, electrode_namelist)
-            df['Event'] = df['Event'].astype(np.uint8)
-            utils.save_parquet(df, os.path.join(folder_dest, f"02_{person+1:02d}_{trial+1:02d}_160.parquet"))
+
+            if arg.preprocessing:
+                df = utils.preprocessing(df, arg)
+            utils.save_parquet(df,
+                               os.path.join(arg.folder_dst, f"{arg.index:02d}_{person+1:02d}_{trial+1:02d}_{arg.result_sampling_rate}.parquet"))
             progressbar.update(1)
 
 

@@ -5,23 +5,34 @@ import os
 import utils
 from event import Event
 from tqdm import tqdm
+from arg import Arg
+
+
+arg = Arg(
+    index=5,
+    name="BCI Competition IV-1",
+    folder_src="E:/Code/Dataset/EEG/(5) BCI Competition IV-1",
+    folder_dst="./(5) BCI Competition IV-1",
+    sampling_rate=0,
+    scale=False
+)
 
 
 def main():
-    folder_src = r"E:\Code\Dataset\EEG\(5) BCI Competition IV-1"
+    folder_src = "E:/Code/Dataset/EEG/(5) BCI Competition IV-1"
     folder_dst = r"./(5) BCI Competition IV-1"
     utils.mkdir(folder_dst)
 
     file_list = utils.list_dir(folder_src, ".mat")
 
     # 遍历文件
-    for file in tqdm(file_list, total=len(file_list), desc="正在处理数据集5"):
+    for file in tqdm(file_list, total=len(file_list), desc=f"正在处理数据集{arg.index}"):
         mat = utils.load_mat(file)
         eeg = mat['cnt']                        # n*59
 
         info = mat['nfo']
         classes = info[0][0]['classes'][0]
-        sampling_rate = info[0][0]['fs'][0][0]  # 采样率
+        arg.set_sampling_rate(info[0][0]['fs'][0][0])   # 采样率
         file_name = os.path.basename(file)
         file_info = file_name.split('_')
         person = ord(file_info[2][3]) - ord('a') + 1
@@ -51,7 +62,7 @@ def main():
                     case 'right':
                         mark[event_start: event_start + 400] = Event.right_hand.value
                     case 'foot':
-                        mark[event_start: event_start + 400] = Event.foot.value
+                        mark[event_start: event_start + 400] = Event.feet.value
             eeg = np.hstack((eeg, mark.reshape(-1, 1)))
             df = utils.dataframe(eeg, electrode_namelist)
 
@@ -60,7 +71,10 @@ def main():
             trial = 2
             electrode_namelist = utils.get_electrode_namelist(5, event=False)
             df = utils.dataframe(eeg, electrode_namelist, event_col_to_int=False)
-        utils.save_parquet(df, os.path.join(folder_dst, f"05_{person:02d}_{trial:02d}_{sampling_rate}.parquet"))
+
+        if arg.preprocessing:
+            df = utils.preprocessing(df, arg)
+        utils.save_parquet(df, os.path.join(folder_dst, f"{arg.index:02d}_{person:02d}_{trial:02d}_{arg.result_sampling_rate}.parquet"))
 
 
 if __name__ == '__main__':

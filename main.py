@@ -1,6 +1,6 @@
 import run1
 import run2
-import run3
+# import run3
 import run4
 import run5
 import run6
@@ -8,7 +8,7 @@ import run7
 import run8
 
 
-if __name__ == '__main__':
+def main():
     run1.main()
     run2.main()
     # run3.main()
@@ -17,3 +17,7 @@ if __name__ == '__main__':
     run6.main()
     run7.main()
     run8.main()
+
+
+if __name__ == '__main__':
+    main()

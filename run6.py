@@ -4,15 +4,24 @@ from event import Event
 from tqdm import tqdm
 import numpy as np
 import os
+from arg import Arg
+
+
+arg = Arg(
+    index=6,
+    name="BCI Competition IV-2a",
+    folder_src="E:/Code/Dataset/EEG/(6) BCI Competition IV-2a/npz",
+    folder_dst="./(6) BCI Competition IV-2a",
+    sampling_rate=250,
+    scale=False
+)
 
 
 def main():
-    folder_src = r"E:\Code\Dataset\EEG\(6) BCI Competition IV-2a\npz"
-    folder_dst = r"./(6) BCI Competition IV-2a"
-    utils.mkdir(folder_dst)
-    file_list = utils.list_dir(folder_src, '.npz')
+    utils.mkdir(arg.folder_dst)
+    file_list = utils.list_dir(arg.folder_src, '.npz')
 
-    for file in tqdm(file_list, total=len(file_list), desc='正在处理数据集6'):
+    for file in tqdm(file_list, total=len(file_list), desc=f'正在处理数据集{arg.index}'):
         # 读取数据
         data = np.load(file)
         eeg = data['s']
@@ -21,7 +30,6 @@ def main():
         file_name = os.path.basename(file)
         person = int(file_name[2])
         trial = 1 if file_name[3] == 'T' else 2     # 1:train 2:test
-        sampling_rate = 250
 
         # 删除3个EOG通道
         eeg = eeg[:, :22]
@@ -38,13 +46,13 @@ def main():
                 # onset是屏幕上出现提示的时间，实际开始想象的时间是onset+1~onset+4
                 match type_:
                     case 769:
-                        event[onset + sampling_rate: onset + sampling_rate * 4] = Event.left_hand.value
+                        event[onset + arg.sampling_rate: onset + arg.sampling_rate * 4] = Event.left_hand.value
                     case 770:
-                        event[onset + sampling_rate: onset + sampling_rate * 4] = Event.right_hand.value
+                        event[onset + arg.sampling_rate: onset + arg.sampling_rate * 4] = Event.right_hand.value
                     case 771:
-                        event[onset + sampling_rate: onset + sampling_rate * 4] = Event.foot.value
+                        event[onset + arg.sampling_rate: onset + arg.sampling_rate * 4] = Event.feet.value
                     case 772:
-                        event[onset + sampling_rate: onset + sampling_rate * 4] = Event.tongue.value
+                        event[onset + arg.sampling_rate: onset + arg.sampling_rate * 4] = Event.tongue.value
                     case _:
                         pass
 
@@ -59,7 +67,9 @@ def main():
 
         # 保存
         df = utils.dataframe(eeg, electrode_namelist)
-        utils.save_parquet(df, os.path.join(folder_dst, f"06_{person:02d}_{trial:02d}_{sampling_rate}.parquet"))
+        if arg.preprocessing:
+            df = utils.preprocessing(df, arg)
+        utils.save_parquet(df, os.path.join(arg.folder_dst, f"{arg.index:02d}_{person:02d}_{trial:02d}_{arg.result_sampling_rate}.parquet"))
 
 
 if __name__ == '__main__':

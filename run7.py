@@ -5,16 +5,24 @@ from tqdm import tqdm
 import numpy as np
 import os
 import mne
+from arg import Arg
+
+
+arg = Arg(
+    index=7,
+    name="BCI Competition IV-2b",
+    folder_src="E:/Code/Dataset/EEG/(7) BCI Competition IV-2b",
+    folder_dst="./(7) BCI Competition IV-2b",
+    sampling_rate=250,
+    scaler=1e+6
+)
 
 
 def main():
-    folder_src = r"E:\Code\Dataset\EEG\(7) BCI Competition IV-2b"
-    folder_dst = r"./(7) BCI Competition IV-2b"
-    utils.mkdir(folder_dst)
-    file_list = utils.list_dir(folder_src, '.gdf')
-    sampling_rate = 250
+    utils.mkdir(arg.folder_dst)
+    file_list = utils.list_dir(arg.folder_src, '.gdf')
 
-    for file in tqdm(file_list, total=len(file_list), desc='正在处理数据集7'):
+    for file in tqdm(file_list, total=len(file_list), desc=f'正在处理数据集{arg.index}'):
         # 获取文件信息
         file_name = os.path.basename(file)
         person = int(file_name[1:3])
@@ -35,18 +43,18 @@ def main():
             assert len(events_raw) == len(events_duration) == len(events_onset)
             for i in range(len(events_raw)):
                 event_id = events_raw[i]
-                onset = int(events_onset[i] * sampling_rate)
+                onset = int(events_onset[i] * arg.sampling_rate)
                 match event_id:
                     case 769:
                         if 1 <= trial <= 2:
-                            events[onset: onset + int(3 * sampling_rate)] = Event.left_hand.value
+                            events[onset: onset + int(3 * arg.sampling_rate)] = Event.left_hand.value
                         else:
-                            events[onset: onset + int(3.5 * sampling_rate)] = Event.left_hand.value
+                            events[onset: onset + int(3.5 * arg.sampling_rate)] = Event.left_hand.value
                     case 770:
                         if 1 <= trial <= 2:
-                            events[onset: onset + int(3 * sampling_rate)] = Event.right_hand.value
+                            events[onset: onset + int(3 * arg.sampling_rate)] = Event.right_hand.value
                         else:
-                            events[onset: onset + int(3.5 * sampling_rate)] = Event.right_hand.value
+                            events[onset: onset + int(3.5 * arg.sampling_rate)] = Event.right_hand.value
                     case _:
                         pass
             eeg = np.vstack((eeg, events.reshape(1, -1))).T
@@ -60,7 +68,9 @@ def main():
 
         # 创建dataframe，保存文件
         df = utils.dataframe(eeg, electrode_namelist)
-        utils.save_parquet(df, os.path.join(folder_dst, f"07_{person:02d}_{trial:02d}_{sampling_rate}.parquet"))
+        if arg.preprocessing:
+            df = utils.preprocessing(df, arg)
+        utils.save_parquet(df, os.path.join(arg.folder_dst, f"{arg.index:02d}_{person:02d}_{trial:02d}_{arg.result_sampling_rate}.parquet"))
 
 
 if __name__ == '__main__':

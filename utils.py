@@ -1,12 +1,14 @@
 import os
 from typing import List
 import numpy as np
+from scipy import signal
 import scipy.io as sio
 import pandas as pd
 from event import Event
+from arg import Arg
 
 
-def mkdir(path) -> None:
+def mkdir(path: str) -> None:
     """
     Create a folder if not exists
     :param path:
@@ -50,7 +52,7 @@ def load_mat(file_path: str) -> dict:
     return sio.loadmat(file_path)
 
 
-def get_electrode_namelist(index: int, file_path='electrode_information.csv', event=True) -> list:
+def get_electrode_namelist(index: int, file_path='electrode_information.csv', event=True) -> List[str]:
     """
     获取指定数据集中，电极名称的顺序字符串，比如："FP1,FP3", 最后会添加一个event列(可选)
     :param event: 在列表的最后是否添加一个event列
@@ -59,11 +61,11 @@ def get_electrode_namelist(index: int, file_path='electrode_information.csv', ev
     :return: str
     """
     electrode_information = pd.read_csv(file_path)
-    cols: pd.DataFrame = electrode_information.iloc[:, [0, 4+index]]
-    # 现在得到了第一列是电极名称，第二列是索引的列表，接下来删除NA，并排序
-    cols = cols.dropna(subset=[cols.columns[1]])
+    cols: pd.DataFrame = electrode_information.iloc[:, [0, 4 + index]]
+    # 现在得到了第一列是电极名称，第二列是索引的列表，接下来删除0，并排序
+    cols = cols[cols.iloc[:, 1] != 0]
     cols = cols.sort_values(by=cols.columns[1])
-    ret: list = cols.iloc[:, 0].tolist()
+    ret: List[str] = cols.iloc[:, 0].tolist()
     if event:
         ret.append(Event.col_name.value)
     return ret
@@ -107,3 +109,58 @@ def save_parquet(df: pd.DataFrame, file_path: str, index=False) -> None:
     df.to_parquet(file_path, index=index)
 
 
+def filter_available_electrodes(df: pd.DataFrame, usage_threshold: int, has_event: bool, file_path='electrode_information.csv') -> pd.DataFrame:
+    info = pd.read_csv(file_path)
+    names: List[str] = info[info['Usage'] >= usage_threshold]['Electrode_name'].tolist()
+    if has_event:
+        names.append(Event.col_name.value)
+    names = [name for name in names if name in df.columns]
+    return df[names]
+
+
+def preprocessing(df: pd.DataFrame, arg: Arg) -> pd.DataFrame:
+    """
+    降采样
+    :param df: dataframe
+    :param arg: 参数
+    :return: 处理后的dataframe
+    """
+    n = df.shape[0]
+    has_event = df.columns[-1] == Event.col_name.value
+
+    if arg.use_available_electrodes:
+        df = filter_available_electrodes(df, arg.usage_threshold, has_event)
+
+    col = df.shape[1]
+
+    assert arg.sampling_rate >= arg.resampling_rate
+    if arg.resample and arg.sampling_rate > arg.resampling_rate:
+        # 如果确认要降采样并且采样率前后不相等
+        target_samples = int(n * arg.resampling_rate / arg.sampling_rate)
+        if has_event:
+            # 包含事件列，把事件与数据分离
+            # 先对eeg降采样
+            eeg = df.iloc[:, :col - 1]
+            eeg = signal.resample(eeg, target_samples, axis=0)
+            if arg.scale:
+                # 如果缩放了，那么就趁现在缩放
+                eeg = eeg * arg.scaler
+            # 再对事件降采样
+            event = df.iloc[:, col - 1].to_numpy()
+            indices = np.linspace(0, n - 1, target_samples, dtype=int)
+            event = event[indices]
+            # 把eeg和事件合并
+            eeg = np.hstack((eeg, event.reshape(-1, 1)))
+        else:
+            # 如果没有事件，那么就对全部eeg降采样
+            eeg = signal.resample(df, target_samples, axis=0)
+            if arg.scale:
+                eeg = eeg * arg.scaler
+        df = dataframe(eeg, df.columns, False)
+    elif arg.scale:
+        # 如果不做降采样，只缩放
+        if has_event:
+            df.iloc[:, :col - 1] = df.iloc[:, :col - 1] * arg.scaler
+        else:
+            df = df * arg.scaler
+    return df
